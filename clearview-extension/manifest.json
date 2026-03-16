@@ -1,0 +1,28 @@
+{
+    "manifest_version": 3,
+    "name": "ClearView Schoology Sync",
+    "version": "1.0",
+    "description": "Securely syncs your Schoology grades and assignments with the ClearView dashboard.",
+    "permissions": [
+        "cookies",
+        "storage",
+        "tabs"
+    ],
+    "host_permissions": [
+        "<all_urls>",
+        "http://localhost:8000/*"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "ClearView Sync"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["http://localhost:3000/*", "https://*.clearview.app/*"],
+            "js": ["content.js"]
+        }
+    ]
+}

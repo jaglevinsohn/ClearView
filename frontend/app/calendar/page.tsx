@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import Header from '@/components/Header';
 
 interface Assignment {
@@ -31,10 +33,24 @@ export default function CalendarPage() {
 
     const [currentDate, setCurrentDate] = useState(new Date());
 
+    const [userId, setUserId] = useState<string | null>(null);
+
     useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                setUserId(user.uid);
+            } else {
+                router.push('/login');
+            }
+        });
+        return () => unsubscribe();
+    }, [router]);
+
+    useEffect(() => {
+        if (!userId) return;
         const loadStudents = async () => {
             try {
-                const res = await fetchWithAuth('/dashboard/students');
+                const res = await fetchWithAuth(`/dashboard/students?user_id=${userId}`);
                 if (res.students && res.students.length > 0) {
                     setStudents(res.students);
                     setSelectedStudentId(res.students[0].id);
@@ -50,12 +66,12 @@ export default function CalendarPage() {
     }, [router]);
 
     useEffect(() => {
-        if (!selectedStudentId) return;
+        if (!selectedStudentId || !userId) return;
 
         const loadAssignments = async () => {
             setLoading(true);
             try {
-                const res = await fetchWithAuth(`/dashboard/student/${selectedStudentId}/assignments`);
+                const res = await fetchWithAuth(`/dashboard/student/${selectedStudentId}/assignments?user_id=${userId}`);
                 setAssignments(res.assignments || []);
             } catch (err) {
                 console.error(err);

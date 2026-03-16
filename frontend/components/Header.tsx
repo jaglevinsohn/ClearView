@@ -13,6 +13,7 @@ export default function Header({ students, selectedStudentId, setSelectedStudent
         <header className="border-b border-[var(--color-card-border)] bg-[#0d1117]/80 backdrop-blur-md sticky top-0 z-10 transition-all">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                 <div
+                    id="tour-home-logo"
                     onClick={() => router.push('/dashboard')}
                     className="flex items-center gap-2 text-indigo-400 font-bold text-xl cursor-pointer hover:opacity-80 transition"
                 >
@@ -21,7 +22,7 @@ export default function Header({ students, selectedStudentId, setSelectedStudent
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="bg-[#1e2436] rounded-full p-1 flex items-center border border-[#2a3045]/50 shadow-inner">
+                    <div id="tour-student-switcher" className="bg-[#1e2436] rounded-full p-1 flex items-center border border-[#2a3045]/50 shadow-inner">
                         {students.map((s: any) => (
                             <div
                                 key={s.id}

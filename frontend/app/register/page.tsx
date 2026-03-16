@@ -22,7 +22,11 @@ export default function Register() {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             // Firebase automatically manages the token persistence
-            router.push('/dashboard');
+
+            // Clear the tutorial flag so new users always see the onboarding tour
+            localStorage.removeItem('user.hasCompletedTutorial');
+
+            router.push('/connect');
         } catch (err: any) {
             console.error('Registration error:', err);
             // Provide a user-friendly error message from Firebase
@@ -37,7 +41,11 @@ export default function Register() {
         setError('');
         try {
             const userCredential = await signInWithPopup(auth, googleProvider);
-            router.push('/dashboard');
+
+            // Clear the tutorial flag so new users always see the onboarding tour
+            localStorage.removeItem('user.hasCompletedTutorial');
+
+            router.push('/connect');
         } catch (err: any) {
             console.error('Google register error:', err);
             setError(err.message.replace('Firebase: ', ''));

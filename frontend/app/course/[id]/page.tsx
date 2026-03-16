@@ -4,14 +4,20 @@ import { useEffect, useState, use } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface Assignment {
     id: number;
     name: string;
     due_date: string;
     score: number | null;
+    grade_text: string | null;
+    score_type: string | null;
     max_score: number | null;
-    is_late: boolean;
+    submission_status: string;
+    grading_status: string;
+    timeliness_status: string;
 }
 
 interface Category {
@@ -26,11 +32,24 @@ export default function CourseDetail({ params }: { params: Promise<{ id: string 
     const router = useRouter();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [userId, setUserId] = useState<string | null>(null);
 
     useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                setUserId(user.uid);
+            } else {
+                router.push('/login');
+            }
+        });
+        return () => unsubscribe();
+    }, [router]);
+
+    useEffect(() => {
+        if (!userId) return;
         const loadData = async () => {
             try {
-                const res = await fetchWithAuth(`/dashboard/course/${resolvedParams.id}`);
+                const res = await fetchWithAuth(`/dashboard/course/${resolvedParams.id}?user_id=${userId}`);
                 setData(res);
             } catch (err) {
                 console.error(err);
@@ -47,15 +66,78 @@ export default function CourseDetail({ params }: { params: Promise<{ id: string 
     const { course, categories, assignments } = data;
 
     const getGradeColor = (letter: string) => {
+        if (!letter) return 'text-gray-400';
         if (letter.startsWith('A')) return 'text-emerald-400';
         if (letter.startsWith('B')) return 'text-blue-400';
         if (letter.startsWith('C')) return 'text-amber-400';
         return 'text-red-400';
     };
 
-    // Group assignments by dummy mapping for MVP (since we don't have category_id on assignments in our simple DB schema, we just show all or fake groups based on name)
-    const homeworkAssignments = assignments.filter((a: any) => a.name.includes('HW') || a.name.includes('Practice') || a.name.includes('Set'));
-    const testAssignments = assignments.filter((a: any) => a.name.includes('Test'));
+    const has_category_averages = categories.some((c: Category) => c.percentage !== null);
+    const show_category_cards = course.grading_mode !== "letter" && has_category_averages;
+    const is_linear_list = course.grading_mode === "letter";
+
+    // Dynamically group assignments based on keyword matching with categories
+    const groupedAssignments = categories.map((cat: Category) => {
+        return {
+            category: cat,
+            assignments: assignments.filter((a: Assignment) => {
+                const n = a.name.toLowerCase();
+                const c = cat.name.toLowerCase();
+                if (c.includes('homework') || c.includes('hw')) return n.includes('hw') || n.includes('practice') || n.includes('reading') || n.includes('log') || n.includes('homework') || n.includes('assignment');
+                if (c.includes('test') || c.includes('quiz')) return n.includes('test') || n.includes('quiz') || n.includes('exam') || n.includes('report');
+                if (c.includes('project') || c.includes('lab') || c.includes('essay')) return n.includes('project') || n.includes('lab') || n.includes('essay') || n.includes('presentation') || n.includes('research');
+                if (c.includes('participation')) return n.includes('participation') || n.includes('discussion');
+                return false;
+            })
+        };
+    }).filter((g: { category: Category, assignments: Assignment[] }) => g.assignments.length > 0);
+
+    const categorizedIds = new Set(groupedAssignments.flatMap((g: { category: Category, assignments: Assignment[] }) => g.assignments.map((a: Assignment) => a.id)));
+    const uncategorizedAssignments = assignments.filter((a: Assignment) => !categorizedIds.has(a.id));
+
+    const formatCourseName = (fullName: string) => {
+        let name = fullName.split(':')[0].split('-')[0].trim();
+        const words = name.split(' ');
+        if (words.length <= 1) return { context: 'COURSE', subject: name };
+
+        const prefixes = ['AP', 'HONORS', 'IB', 'ADVANCED', 'INTRO', 'PE', 'PHYSICAL'];
+        if (prefixes.includes(words[0].toUpperCase())) {
+            return {
+                context: words[0].toUpperCase(),
+                subject: words.slice(1).join(' ')
+            };
+        }
+        
+        return { context: 'CLASS', subject: name };
+    };
+
+    const { context, subject } = formatCourseName(course.name);
+
+    const cleanAssignmentName = (name: string) => {
+        let cleanName = name.trim();
+        const suffixes = ["assignment", "assessment", "discussion", "external-tool-link", "link"];
+        for (const suffix of suffixes) {
+            if (cleanName.toLowerCase().endsWith(suffix)) {
+                cleanName = cleanName.substring(0, cleanName.length - suffix.length).trim();
+            }
+        }
+        return cleanName;
+    };
+
+    const parseSchoologyDate = (dateStr: string) => {
+        if (!dateStr) return null;
+        try {
+            let parsedDate = new Date(dateStr);
+            if (isNaN(parsedDate.getTime())) {
+                parsedDate = new Date(`${dateStr} ${new Date().getFullYear()}`);
+            }
+            if (isNaN(parsedDate.getTime())) return null;
+            return parsedDate;
+        } catch {
+            return null;
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[var(--color-bg-dark)] text-[#f8fafc]">
@@ -64,12 +146,12 @@ export default function CourseDetail({ params }: { params: Promise<{ id: string 
                 <div className="flex justify-between items-start mb-10 border-b border-[#2a3045]/50 pb-10 pt-4">
                     <div>
                         <div className="text-xs font-bold text-indigo-400/80 tracking-widest mb-2 uppercase">
-                            {course.name.split(' ')[0]} · SPRING 2026
+                            {context} · SPRING 2026
                         </div>
-                        <h1 className="text-4xl font-black mb-6 tracking-tight text-white">{course.name.substring(course.name.indexOf(' ') + 1)}</h1>
+                        <h1 className="text-4xl font-black mb-6 tracking-tight text-white">{subject}</h1>
                         <div className="flex items-end gap-3 mt-4">
                             <span className={`text-7xl font-black tracking-tighter leading-none ${getGradeColor(course.letter_grade)}`}>
-                                {course.overall_grade}%
+                                {course.overall_grade != null ? `${Number(course.overall_grade).toFixed(1)}%` : '--'}
                             </span>
                             <span className={`text-3xl font-bold bg-[#1e2230] px-4 py-1 rounded-xl mb-1 ${getGradeColor(course.letter_grade)}`}>
                                 {course.letter_grade}
@@ -86,89 +168,130 @@ export default function CourseDetail({ params }: { params: Promise<{ id: string 
                 </div>
 
                 {/* Category breakdown cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-                    {categories.map((cat: Category) => (
-                        <div key={cat.id} className="bg-[var(--color-card-dark)] rounded-xl p-4 border border-[var(--color-card-border)]">
-                            <div className="text-xs font-semibold text-[var(--color-text-muted)] tracking-wider mb-2 uppercase">{cat.name}</div>
-                            <div className={`text-xl font-bold ${cat.percentage ? 'text-blue-400' : 'text-gray-500'}`}>
-                                {cat.percentage ? `${cat.percentage.toFixed(1)}%` : '—'}
+                {show_category_cards && (
+                    <div className="flex gap-4 mb-12 overflow-x-auto pb-4 hide-scrollbar">
+                        {categories.map((cat: Category) => (
+                            <div key={cat.id} className="bg-[#1e2230] rounded-xl p-5 border border-[#2a3045]/50 min-w-[200px] flex-shrink-0 shadow-sm">
+                                <div className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">{cat.name}</div>
+                                <div className={`text-[26px] font-bold tracking-tight ${cat.percentage ? 'text-blue-500' : 'text-gray-500'}`}>
+                                    {cat.percentage ? `${cat.percentage.toFixed(1)}%` : '—'}
+                                </div>
+                                <div className="text-[12px] text-gray-500 font-medium mt-1">{Math.round(cat.weight)}% of grade</div>
                             </div>
-                            <div className="text-xs text-[var(--color-text-muted)] mt-1">{cat.weight}% of grade</div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* Assignments List */}
-                <div className="space-y-10">
-
-                    {/* Homework Group */}
-                    {homeworkAssignments.length > 0 && (
-                        <div>
-                            <div className="flex items-center gap-3 mb-4">
-                                <h2 className="text-sm font-bold tracking-wider uppercase">Homework</h2>
-                                <span className="bg-[#1e2230] text-xs px-2 py-0.5 rounded-full text-[var(--color-text-muted)]">25%</span>
+                {is_linear_list ? (
+                    <div className="space-y-6">
+                        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-5 mb-6 shadow-sm">
+                            <p className="text-indigo-300 text-[14px] font-medium leading-relaxed">This course uses letter-based grading, so category percentages are not shown.</p>
+                        </div>
+                        <div className="bg-[#1e2230] rounded-xl border border-[#2a3045]/50 overflow-hidden shadow-sm">
+                            <div className="flex justify-between px-6 py-4 border-b border-[#2a3045]/50 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                <div>Assignment</div>
+                                <div>Score</div>
                             </div>
-
-                            <div className="bg-[var(--color-card-dark)] rounded-xl border border-[var(--color-card-border)] overflow-hidden">
-                                <div className="flex justify-between px-6 py-3 border-b border-[#2a2e3f] text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-                                    <div>Assignment</div>
-                                    <div>Score</div>
-                                </div>
-
-                                <div className="divide-y divide-[#2a3045]/50">
-                                    {homeworkAssignments.map((a: Assignment, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center px-6 py-5 hover:bg-[#202538] transition-colors group">
-                                            <div>
-                                                <div className="font-semibold text-[15px] flex items-center gap-3 text-gray-100 group-hover:text-white transition-colors">
-                                                    {a.name}
-                                                    {a.is_late ? <span className="text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-0.5 rounded shadow-sm tracking-wide">LATE</span> : null}
-                                                </div>
-                                                <div className="text-[13px] text-[var(--color-text-muted)] mt-1.5 font-medium">Due {new Date(a.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                            <div className="divide-y divide-[#2a3045]/50">
+                                {assignments.map((a: Assignment, idx: number) => (
+                                    <div key={idx} className="flex justify-between items-center px-6 py-5 hover:bg-[#252a3a] transition-colors">
+                                        <div>
+                                            <div className="font-semibold text-[15px] flex items-center gap-3 text-gray-100">
+                                                {cleanAssignmentName(a.name)}
+                                                {a.timeliness_status === "overdue" && a.submission_status === "not_submitted" ? <span className="text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-0.5 rounded shadow-sm tracking-wide">MISSING</span> : null}
+                                                {a.timeliness_status === "late_submitted" && a.submission_status === "submitted" ? <span className="text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-0.5 rounded shadow-sm tracking-wide">LATE</span> : null}
+                                                {a.grading_status === "ungraded" && a.submission_status === "submitted" ? <span className="text-[10px] font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded shadow-sm tracking-wide">SUBMITTED</span> : null}
                                             </div>
-                                            <div className="font-bold text-emerald-400 text-lg">
-                                                {a.score}/{a.max_score}
-                                            </div>
+                                            <div className="text-[13px] text-gray-500 mt-1 font-medium">Due {a.due_date && parseSchoologyDate(a.due_date) ? parseSchoologyDate(a.due_date)!.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'}</div>
                                         </div>
-                                    ))}
-                                </div>
+                                        <div className="font-bold text-blue-500 text-[18px]">
+                                            {a.score_type === 'letter' || a.score_type === 'status' 
+                                                ? a.grade_text 
+                                                : (a.score !== null ? (a.max_score === 100 ? `${a.score}%` : `${a.score}/${a.max_score}`) : '--')}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    )}
-
-                    {/* Tests Group */}
-                    {testAssignments.length > 0 && (
-                        <div>
-                            <div className="flex items-center gap-3 mb-4">
-                                <h2 className="text-sm font-bold tracking-wider uppercase">Tests</h2>
-                                <span className="bg-[#1e2230] text-xs px-2 py-0.5 rounded-full text-[var(--color-text-muted)]">50%</span>
-                            </div>
-
-                            <div className="bg-[var(--color-card-dark)] rounded-xl border border-[var(--color-card-border)] overflow-hidden">
-                                <div className="flex justify-between px-6 py-4 border-b border-[#2a2e3f] text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-                                    <div>Assignment</div>
-                                    <div>Score</div>
+                    </div>
+                ) : (
+                    <div className="space-y-12">
+                        {groupedAssignments.map((group: { category: Category, assignments: Assignment[] }, groupIdx: number) => (
+                            <div key={groupIdx}>
+                                <div className="flex items-center gap-3 mb-5">
+                                    <h2 className="text-[13px] font-bold tracking-widest text-white uppercase">{group.category.name}</h2>
+                                    <span className="bg-[#1e2230] text-[11px] font-medium px-2.5 py-1 rounded-full text-gray-400 tracking-wide">{Math.round(group.category.weight)}%</span>
                                 </div>
 
-                                <div className="divide-y divide-[#2a3045]/50">
-                                    {testAssignments.map((a: Assignment, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center px-6 py-5 hover:bg-[#202538] transition-colors group">
-                                            <div>
-                                                <div className="font-semibold text-[15px] flex items-center gap-3 text-gray-100 group-hover:text-white transition-colors">
-                                                    {a.name}
+                                <div className="bg-[#1e2230] rounded-xl border border-[#2a3045]/50 overflow-hidden shadow-sm">
+                                    <div className="flex justify-between px-6 py-4 border-b border-[#2a3045]/50 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                        <div>Assignment</div>
+                                        <div>Score</div>
+                                    </div>
+
+                                    <div className="divide-y divide-[#2a3045]/50">
+                                        {group.assignments.map((a: Assignment, idx: number) => (
+                                            <div key={idx} className="flex justify-between items-center px-6 py-5 hover:bg-[#252a3a] transition-colors">
+                                                <div>
+                                                    <div className="font-semibold text-[15px] flex items-center gap-3 text-gray-100">
+                                                        {cleanAssignmentName(a.name)}
+                                                        {a.timeliness_status === "overdue" && a.submission_status === "not_submitted" ? <span className="text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-0.5 rounded shadow-sm tracking-wide">MISSING</span> : null}
+                                                        {a.timeliness_status === "late_submitted" && a.submission_status === "submitted" ? <span className="text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-0.5 rounded shadow-sm tracking-wide">LATE</span> : null}
+                                                        {a.grading_status === "ungraded" && a.submission_status === "submitted" ? <span className="text-[10px] font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded shadow-sm tracking-wide">SUBMITTED</span> : null}
+                                                    </div>
+                                                    <div className="text-[13px] text-gray-500 mt-1 font-medium">Due {a.due_date && parseSchoologyDate(a.due_date) ? parseSchoologyDate(a.due_date)!.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'}</div>
                                                 </div>
-                                                <div className="text-[13px] text-[var(--color-text-muted)] mt-1.5 font-medium">Due {new Date(a.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                                                <div className="font-bold text-blue-500 text-[18px]">
+                                                    {a.score_type === 'letter' || a.score_type === 'status'
+                                                        ? a.grade_text 
+                                                        : (a.score !== null ? (a.max_score === 100 ? `${a.score}%` : `${a.score}/${a.max_score}`) : '--')}
+                                                </div>
                                             </div>
-                                            <div className="font-bold text-blue-400 text-lg">
-                                                {a.score}/{a.max_score}
-                                            </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        ))}
 
-                </div>
+                        {/* Uncategorized Group */}
+                        {uncategorizedAssignments.length > 0 && (
+                            <div>
+                                <div className="flex items-center gap-3 mb-5">
+                                    <h2 className="text-[13px] font-bold tracking-widest text-white uppercase">Other Assignments</h2>
+                                </div>
+
+                                <div className="bg-[#1e2230] rounded-xl border border-[#2a3045]/50 overflow-hidden shadow-sm">
+                                    <div className="flex justify-between px-6 py-4 border-b border-[#2a3045]/50 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                        <div>Assignment</div>
+                                        <div>Score</div>
+                                    </div>
+
+                                    <div className="divide-y divide-[#2a3045]/50">
+                                        {uncategorizedAssignments.map((a: Assignment, idx: number) => (
+                                            <div key={idx} className="flex justify-between items-center px-6 py-5 hover:bg-[#252a3a] transition-colors">
+                                                <div>
+                                                    <div className="font-semibold text-[15px] flex items-center gap-3 text-gray-100">
+                                                        {cleanAssignmentName(a.name)}
+                                                        {a.timeliness_status === "overdue" && a.submission_status === "not_submitted" ? <span className="text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-0.5 rounded shadow-sm tracking-wide">MISSING</span> : null}
+                                                        {a.timeliness_status === "late_submitted" && a.submission_status === "submitted" ? <span className="text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-0.5 rounded shadow-sm tracking-wide">LATE</span> : null}
+                                                        {a.grading_status === "ungraded" && a.submission_status === "submitted" ? <span className="text-[10px] font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded shadow-sm tracking-wide">SUBMITTED</span> : null}
+                                                    </div>
+                                                    <div className="text-[13px] text-gray-500 mt-1 font-medium">Due {a.due_date && parseSchoologyDate(a.due_date) ? parseSchoologyDate(a.due_date)!.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'ASAP'}</div>
+                                                </div>
+                                                <div className="font-bold text-blue-500 text-[18px]">
+                                                    {a.score_type === 'letter' || a.score_type === 'status'
+                                                        ? a.grade_text 
+                                                        : (a.score !== null ? (a.max_score === 100 ? `${a.score}%` : `${a.score}/${a.max_score}`) : '--')}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

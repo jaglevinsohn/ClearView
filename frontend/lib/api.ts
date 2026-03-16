@@ -1,4 +1,4 @@
-export const API_URL = 'http://127.0.0.1:4000/api';
+export const API_URL = 'http://127.0.0.1:8000/api';
 
 export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
     const token = localStorage.getItem('token');

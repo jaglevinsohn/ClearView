@@ -21,6 +21,7 @@ export default function Login() {
 
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
             router.push('/dashboard');
         } catch (err: any) {
             console.error('Login error:', err);
@@ -35,6 +36,7 @@ export default function Login() {
         setError('');
         try {
             const userCredential = await signInWithPopup(auth, googleProvider);
+
             router.push('/dashboard');
         } catch (err: any) {
             console.error('Google login error:', err);
