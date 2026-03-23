@@ -40,4 +40,7 @@ def read_health():
 # For running directly with `python main.py`
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    is_prod = os.environ.get("RENDER") == "true" or os.environ.get("ENV") == "production"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=not is_prod)
