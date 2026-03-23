@@ -155,6 +155,9 @@ async def parse_assignments(page: Page, external_course_id: str, target_domain: 
             # Strip extra whitespace and note hidden text
             title = title.replace("\n", " ").strip()
             
+            # Remove Schoology's unavailable material note
+            title = re.sub(r'(?i)Note:\s*This material is not available within Schoology', '', title).strip()
+            
             # Remove redundant suffixes caused by screen-reader text inside the anchor
             suffixes_to_remove = ["assignment", "external-tool-link", "discussion", "assessment"]
             for suffix in suffixes_to_remove:
