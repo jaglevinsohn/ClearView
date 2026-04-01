@@ -43,7 +43,7 @@ export default function PrivacyPolicy() {
                 <h2 className="text-2xl font-semibold text-white mt-8 mb-4">5. Contact Us</h2>
                 <p>
                     If you have any questions or concerns about this Privacy Policy, please
-                    contact us.
+                    contact us at <a href="mailto:jaglevinsohn@gmail.com" className="text-teal-400 hover:text-teal-300 underline underline-offset-4">jaglevinsohn@gmail.com</a>.
                 </p>
             </div>
         </div>

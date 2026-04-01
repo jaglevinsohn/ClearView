@@ -17,9 +17,9 @@ export default function Footer() {
                 </p>
 
                 <div className="flex gap-8 text-sm text-[var(--color-text-muted)]">
-                    <Link href="#" className="hover:text-white hover:underline transition-all underline-offset-4">Privacy</Link>
-                    <Link href="#" className="hover:text-white hover:underline transition-all underline-offset-4">Terms</Link>
-                    <Link href="#" className="hover:text-white hover:underline transition-all underline-offset-4">Contact</Link>
+                    <Link href="/privacy" className="hover:text-white hover:underline transition-all underline-offset-4">Privacy</Link>
+                    <Link href="/terms" className="hover:text-white hover:underline transition-all underline-offset-4">Terms</Link>
+                    <a href="mailto:jaglevinsohn@gmail.com" className="hover:text-white hover:underline transition-all underline-offset-4">Contact</a>
                 </div>
             </div>
         </footer>
