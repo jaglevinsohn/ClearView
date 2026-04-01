@@ -1,11 +1,10 @@
 {
     "manifest_version": 3,
     "name": "Gravio Schoology Sync",
-    "version": "1.0",
+    "version": "1.0.1",
     "description": "Securely syncs your Schoology grades and assignments with the Gravio dashboard.",
     "permissions": [
         "cookies",
-        "storage",
         "tabs"
     ],
     "host_permissions": [
