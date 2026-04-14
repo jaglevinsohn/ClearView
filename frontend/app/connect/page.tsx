@@ -198,6 +198,12 @@ export default function ConnectSchoology() {
                         )}
                     </button>
                     
+                    {status === 'syncing_schoology' && (
+                        <p className="mt-3 text-center text-sm font-medium text-blue-400 animate-pulse">
+                            Please keep this tab open. Syncing may take a couple of minutes...
+                        </p>
+                    )}
+                    
                     <p className="mt-4 text-center text-xs text-[var(--color-text-muted)] mb-4">
                         Gravio only reads your grades. We never store your passwords or modify your Schoology data.
                     </p>
