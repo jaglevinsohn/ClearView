@@ -6,6 +6,8 @@ export const metadata: Metadata = {
     description: "A simple parent dashboard for monitoring academic performance.",
 };
 
+import ExtensionListener from "@/components/ExtensionListener";
+
 export default function RootLayout({
     children,
 }: Readonly<{
@@ -13,7 +15,10 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" className="dark">
-            <body className="min-h-screen bg-[var(--color-bg-dark)] text-[#f8fafc]">{children}</body>
+            <body className="min-h-screen bg-[var(--color-bg-dark)] text-[#f8fafc]">
+                <ExtensionListener />
+                {children}
+            </body>
         </html>
     );
 }

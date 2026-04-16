@@ -26,18 +26,7 @@ export default function ConnectSchoology() {
         return () => unsubscribe();
     }, [router]);
 
-    useEffect(() => {
-        // Listen for messages from the Chrome extension content script
-        const handleMessage = (event: MessageEvent) => {
-            // Ensure we only accept messages from our own extension/window
-            if (event.source !== window || !event.data || event.data.type !== 'REQUEST_USER_ID') return;
-            
-            window.postMessage({ type: 'PROVIDE_USER_ID', userId: userId || null }, '*');
-        };
-
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
-    }, [userId]);
+// The extension listener is now handled globally in layout.tsx via ExtensionListener.tsx
 
     const checkConnection = async () => {
         setStatus('validating_session');
