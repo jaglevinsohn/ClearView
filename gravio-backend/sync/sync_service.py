@@ -82,10 +82,15 @@ async def run_sync_for_connection(db: Session, connection_id: int):
                 try:
                     # Click the first account listed in the Google SSO chooser
                     await page.locator("div[data-identifier]").first.click(timeout=8000)
-                    await page.wait_for_load_state("domcontentloaded")
-                    await page.wait_for_timeout(2000) # Give it an extra second to process the login
+                    
+                    # Wait dynamically for the URL to leave Google and go back to Schoology (up to 15 seconds)
+                    try:
+                        await page.wait_for_url("**/schoology.com/**", timeout=15000)
+                    except Exception:
+                        logger.warning("Timed out waiting for redirect back to Schoology, checking current URL anyway...")
+                        
                     actual_url = page.url
-                    logger.info(f"Clicked SSO Profile! URL is now: {actual_url}")
+                    logger.info(f"Clicked SSO Profile and waited! URL is now: {actual_url}")
                 except Exception as e:
                     logger.error(f"Failed to bypass Google SSO: {e}")
 
