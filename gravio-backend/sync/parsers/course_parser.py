@@ -1,4 +1,5 @@
 import logging
+import re
 from playwright.async_api import Page
 
 logger = logging.getLogger(__name__)
@@ -37,43 +38,48 @@ async def parse_courses(page: Page, target_domain: str) -> list:
             if not grade_el:
                 grade_el = await element.query_selector(".course-row .awarded-grade")
             
+            grade = None
+            letter = None
+            
             if grade_el:
                 title_attr = await grade_el.get_attribute("title")
                 # sometimes the full percentage is in 'title', otherwise fallback to inner text
                 grade_text = title_attr if title_attr else await grade_el.inner_text()
-            else:
-                grade_text = "100"
                 
-            grade_val = grade_text.replace("%", "").strip()
-            try:
-                grade = float(grade_val)
-            except ValueError:
-                grade = 100.0
-            
-            if grade >= 93:
-                letter = "A"
-            elif grade >= 90:
-                letter = "A-"
-            elif grade >= 87:
-                letter = "B+"
-            elif grade >= 83:
-                letter = "B"
-            elif grade >= 80:
-                letter = "B-"
-            elif grade >= 77:
-                letter = "C+"
-            elif grade >= 73:
-                letter = "C"
-            elif grade >= 70:
-                letter = "C-"
-            elif grade >= 67:
-                letter = "D+"
-            elif grade >= 63:
-                letter = "D"
-            elif grade >= 60:
-                letter = "D-"
-            else:
-                letter = "F"
+                grade_val = grade_text.replace("%", "").strip()
+                
+                try:
+                    grade = float(grade_val)
+                    if grade >= 93:
+                        letter = "A"
+                    elif grade >= 90:
+                        letter = "A-"
+                    elif grade >= 87:
+                        letter = "B+"
+                    elif grade >= 83:
+                        letter = "B"
+                    elif grade >= 80:
+                        letter = "B-"
+                    elif grade >= 77:
+                        letter = "C+"
+                    elif grade >= 73:
+                        letter = "C"
+                    elif grade >= 70:
+                        letter = "C-"
+                    elif grade >= 67:
+                        letter = "D+"
+                    elif grade >= 63:
+                        letter = "D"
+                    elif grade >= 60:
+                        letter = "D-"
+                    else:
+                        letter = "F"
+                except ValueError:
+                    if re.match(r'^[A-F][+-]?$', grade_val, re.IGNORECASE):
+                        letter = grade_val.upper()
+                    else:
+                        grade = 100.0
+                        letter = "A"
             
             courses.append({
                 "external_course_id": str(course_id),

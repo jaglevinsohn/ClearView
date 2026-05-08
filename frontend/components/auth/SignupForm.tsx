@@ -27,7 +27,7 @@ export default function SignupForm({ redirectTo = '/connect' }: SignupFormProps)
             await createUserWithEmailAndPassword(auth, email, password);
             // Clear the tutorial flag so new users always see the onboarding tour
             localStorage.removeItem('user.hasCompletedTutorial');
-            router.push(redirectTo);
+            router.push('/setup-profile');
         } catch (err: any) {
             console.error('Registration error:', err);
             setError(err.message.replace('Firebase: ', ''));
@@ -43,7 +43,7 @@ export default function SignupForm({ redirectTo = '/connect' }: SignupFormProps)
             await signInWithPopup(auth, googleProvider);
             // Clear the tutorial flag so new users always see the onboarding tour
             localStorage.removeItem('user.hasCompletedTutorial');
-            router.push(redirectTo);
+            router.push('/setup-profile');
         } catch (err: any) {
             console.error('Google register error:', err);
             setError(err.message.replace('Firebase: ', ''));

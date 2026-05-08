@@ -89,7 +89,7 @@ async def run_sync_for_connection(db: Session, connection_id: int):
                 except Exception as e:
                     logger.error(f"Failed to bypass Google SSO: {e}")
 
-            if ("login" in actual_url and "receive/google_apps" not in actual_url) or "authorize" in actual_url or "accounts.google.com" in actual_url:
+            if ("login" in actual_url and "receive/google_apps" not in actual_url) or "authorize" in actual_url or actual_url.startswith("https://accounts.google.com"):
                 raise Exception(f"Session expired or missing. Redirected to {actual_url}")
             
             # 2. Extract Data
@@ -104,7 +104,7 @@ async def run_sync_for_connection(db: Session, connection_id: int):
                 raise Exception("Timeout while fetching courses from Schoology.")
                 
             if len(parsed_courses) == 0:
-                raise Exception("Connected successfully, but no courses were found. Sync aborted to prevent false success.")
+                logger.warning("Connected successfully, but no courses were found. Proceeding anyway.")
                 
             sync_log.courses_imported = len(parsed_courses)
             sync_log.status = "syncing_assignments"
@@ -127,6 +127,9 @@ async def run_sync_for_connection(db: Session, connection_id: int):
                         course = Course(student_id=student.id, **c_data)
                         db.add(course)
                         db.flush()
+                    else:
+                        for k, v in c_data.items():
+                            setattr(course, k, v)
                         
                     # Extract assignments for each course
                     try:
@@ -165,6 +168,9 @@ async def run_sync_for_connection(db: Session, connection_id: int):
                         if not assignment:
                             assignment = Assignment(course_id=course.id, **a_data)
                             db.add(assignment)
+                        else:
+                            for k, v in a_data.items():
+                                setattr(assignment, k, v)
                     
                     # Upsert Categories
                     for cat_data in parsed_categories:

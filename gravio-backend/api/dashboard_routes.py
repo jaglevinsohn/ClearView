@@ -139,38 +139,55 @@ def get_daily_summary(student_id: int, user_id: str = "1", db: Session = Depends
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
         
+    connection = db.query(SchoologyConnection).filter(SchoologyConnection.id == student.connection_id).first()
+        
     courses = db.query(Course).filter(Course.student_id == student.id).all()
     if not courses:
-        return {"daily_summary": {"recent_activity": "No courses found.", "focus_tasks": []}}
+        return {"daily_summary": {
+            "recent_activity": "No courses found.", 
+            "focus_tasks": [],
+            "last_updated": datetime.now().isoformat(),
+            "status_badge": "No data",
+            "recent_activity_feed": [],
+            "weekly_snapshot": {"overdue": 0, "upcoming": 0, "active_courses": 0}
+        }}
         
     course_ids = [c.id for c in courses]
     course_dict = {c.id: c.title for c in courses}
     
-    # Fetch all assignments that are NOT submitted
-    assignments = db.query(Assignment).filter(
-        Assignment.course_id.in_(course_ids),
-        Assignment.submission_status == "not_submitted"
-    ).all()
+    # Fetch all assignments
+    assignments = db.query(Assignment).filter(Assignment.course_id.in_(course_ids)).all()
     
     today = datetime.now().date()
-    overdue_tasks = []
+    overdue_count = 0
+    upcoming_count = 0
+    
     today_tasks = []
     upcoming_tasks = []
     
+    # For activity feed
+    graded_assignments = []
+    submitted_assignments = []
+    upcoming_assignments_list = []
+    
     for a in assignments:
+        is_not_submitted = a.submission_status == "not_submitted"
+        
+        if is_not_submitted and a.timeliness_status in ["overdue", "late_submitted"]:
+            overdue_count += 1
+            
         if a.due_date:
             try:
-                # Extract the YYYY-MM-DD portion of the ISO string safely
                 date_str = a.due_date[:10]
                 a_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                
-                course_name = course_dict.get(a.course_id, "Unknown Course")
                 days_until_due = (a_date - today).days
                 
-                # Format: "Study/complete Assignment Name for Course Name"
+                if is_not_submitted and days_until_due >= 0 and days_until_due <= 7:
+                    upcoming_count += 1
+                    
+                course_name = course_dict.get(a.course_id, "Unknown Course")
                 clean_course_name = course_name.split(':')[0].split('-')[0].strip()
                 
-                # Check for keywords to make the sentence read better
                 action_verb = "Complete"
                 title_lower = a.title.lower()
                 if any(word in title_lower for word in ["test", "quiz", "exam", "assessment"]):
@@ -182,25 +199,38 @@ def get_daily_summary(student_id: int, user_id: str = "1", db: Session = Depends
                     
                 task_str = f"{action_verb} {a.title} for {clean_course_name}"
                 
-                if days_until_due == 0:
-                    today_tasks.append(f"{task_str} (Due Today)")
-                elif days_until_due == 1:
-                    upcoming_tasks.append((days_until_due, f"{task_str} (Due in 1 day)"))
-                elif 1 < days_until_due <= 7:
-                    upcoming_tasks.append((days_until_due, f"{task_str} (Due in {days_until_due} days)"))
+                if is_not_submitted:
+                    if days_until_due == 0:
+                        today_tasks.append(f"{task_str} (Due Today)")
+                    elif days_until_due == 1:
+                        upcoming_tasks.append((days_until_due, f"{task_str} (Due in 1 day)"))
+                    elif 1 < days_until_due <= 7:
+                        upcoming_tasks.append((days_until_due, f"{task_str} (Due in {days_until_due} days)"))
+                        
+                    if days_until_due >= 0:
+                        upcoming_assignments_list.append((days_until_due, a, clean_course_name))
             except Exception:
-                # Ignore invalid dates
                 pass
+                
+        # Track for feed
+        if a.grading_status == "graded" and a.score is not None:
+            graded_assignments.append(a)
+        elif a.submission_status in ["submitted", "resubmitted"]:
+            submitted_assignments.append(a)
 
-    # Sort upcoming tasks by days until due (ascending)
     upcoming_tasks.sort(key=lambda x: x[0])
     sorted_upcoming_strings = [task[1] for task in upcoming_tasks]
 
-    # Focus only on Today and Upcoming, ordered by urgency
     focus_tasks = today_tasks + sorted_upcoming_strings
     
     first_name = student.name.split(" ")[0] if student.name else "Your student"
     
+    status_badge = "All caught up"
+    if overdue_count > 0:
+        status_badge = f"{overdue_count} Overdue Tasks"
+    elif upcoming_count > 0:
+        status_badge = f"{upcoming_count} items this week"
+        
     if len(today_tasks) > 0:
         recent_activity = f"{first_name} has {len(today_tasks)} assignment(s) due today. Here is a breakdown of what they should be focusing on to stay on track:"
     elif len(upcoming_tasks) > 0:
@@ -208,10 +238,45 @@ def get_daily_summary(student_id: int, user_id: str = "1", db: Session = Depends
     else:
         recent_activity = f"{first_name} is completely caught up on all coursework! They have no assignments due today or in the next 7 days."
 
+    # Build the feed
+    graded_assignments.sort(key=lambda x: x.updated_at if x.updated_at else datetime.min, reverse=True)
+    submitted_assignments.sort(key=lambda x: x.updated_at if x.updated_at else datetime.min, reverse=True)
+    upcoming_assignments_list.sort(key=lambda x: x[0])
+    
+    feed_items = []
+    
+    if submitted_assignments:
+        a = submitted_assignments[0]
+        cname = course_dict.get(a.course_id, "Course").split(':')[0].split('-')[0].strip()
+        feed_items.append({"type": "submitted", "text": f"Submitted {a.title} in {cname}", "icon": "check"})
+        
+    if graded_assignments:
+        a = graded_assignments[0]
+        cname = course_dict.get(a.course_id, "Course").split(':')[0].split('-')[0].strip()
+        if not any(f.get("text") and a.title in f["text"] for f in feed_items):
+            score_text = f"{a.score}/{a.max_score}" if a.max_score else str(a.score)
+            feed_items.append({"type": "graded", "text": f"Graded {a.title} in {cname} ({score_text})", "icon": "check"})
+        
+    for _, a, cname in upcoming_assignments_list[:2]:
+        feed_items.append({"type": "upcoming", "text": f"{a.title} due in {cname}", "icon": "dot"})
+        
+    if not feed_items:
+        feed_items.append({"type": "empty", "text": "No recent activity found.", "icon": "dot"})
+
+    last_sync = connection.last_sync_at.isoformat() if connection and connection.last_sync_at else datetime.now().isoformat()
+
     return {
         "daily_summary": {
             "recent_activity": recent_activity,
-            "focus_tasks": focus_tasks[:5] # Limit to top 5 most urgent tasks
+            "focus_tasks": focus_tasks[:5],
+            "last_updated": last_sync,
+            "status_badge": status_badge,
+            "recent_activity_feed": feed_items,
+            "weekly_snapshot": {
+                "overdue": overdue_count,
+                "upcoming": upcoming_count,
+                "active_courses": len(courses)
+            }
         }
     }
 

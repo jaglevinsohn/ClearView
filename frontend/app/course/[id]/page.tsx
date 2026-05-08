@@ -185,13 +185,33 @@ export default function CourseDetail({ params }: { params: Promise<{ id: string 
                             {context} · SPRING 2026
                         </div>
                         <h1 className="text-4xl font-black mb-6 tracking-tight text-white">{subject}</h1>
-                        <div className="flex items-end gap-3 mt-4">
-                            <span className={`text-7xl font-black tracking-tighter leading-none ${getGradeColor(course.letter_grade)}`}>
-                                {course.overall_grade != null ? `${Number(course.overall_grade).toFixed(1)}%` : '--'}
-                            </span>
-                            <span className={`text-3xl font-bold bg-[#1e2230] px-4 py-1 rounded-xl mb-1 ${getGradeColor(course.letter_grade)}`}>
-                                {course.letter_grade}
-                            </span>
+                        <div className="flex flex-col gap-3 mt-4">
+                            <div className="flex items-end gap-3">
+                                {course.overall_grade != null ? (
+                                    <>
+                                        <span className={`text-7xl font-black tracking-tighter leading-none ${getGradeColor(course.letter_grade)}`}>
+                                            {Number(course.overall_grade).toFixed(1)}%
+                                        </span>
+                                        <span className={`text-3xl font-bold bg-[#1e2230] px-4 py-1 rounded-xl mb-1 ${getGradeColor(course.letter_grade)}`}>
+                                            {course.letter_grade}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className={`text-7xl font-black tracking-tighter leading-none ${getGradeColor(course.letter_grade)}`}>
+                                        {course.letter_grade || '--'}
+                                    </span>
+                                )}
+                            </div>
+                            {course.overall_grade == null && course.letter_grade != null && (
+                                <div className="text-xs font-medium text-indigo-300 mt-1 bg-indigo-500/10 border border-indigo-500/20 px-3 py-2 rounded-lg max-w-fit">
+                                    This course uses letter grading rather than percentage.
+                                </div>
+                            )}
+                            {course.overall_grade == null && course.letter_grade == null && (
+                                <div className="text-xs font-medium text-gray-400 mt-1 bg-[#1e2230] border border-[#2a3045]/50 px-3 py-2 rounded-lg max-w-fit">
+                                    No grades posted yet.
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -219,7 +239,12 @@ export default function CourseDetail({ params }: { params: Promise<{ id: string 
                 )}
 
                 {/* Assignments List */}
-                {is_linear_list ? (
+                {assignments.length === 0 ? (
+                    <div className="bg-[#1e2230] border border-[#2a3045]/50 rounded-2xl p-8 text-center shadow-sm mt-8">
+                        <div className="text-gray-400 font-medium mb-1">No assignments have been posted for this course yet.</div>
+                        <div className="text-gray-500 text-[13px]">Check back later as the semester progresses.</div>
+                    </div>
+                ) : is_linear_list ? (
                     <div className="space-y-6">
                         <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-5 mb-6 shadow-sm">
                             <p className="text-indigo-300 text-[14px] font-medium leading-relaxed">This course uses letter-based grading, so category percentages are not shown.</p>

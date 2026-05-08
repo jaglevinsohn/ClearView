@@ -73,3 +73,13 @@ class SyncLog(Base):
     courses_imported = Column(Integer, default=0)
     assignments_imported = Column(Integer, default=0)
     grades_imported = Column(Integer, default=0)
+
+class UserSubscription(Base):
+    __tablename__ = "user_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True, unique=True)
+    stripe_customer_id = Column(String, nullable=True)
+    stripe_subscription_id = Column(String, nullable=True)
+    status = Column(String, default="inactive")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -288,8 +288,10 @@ async def parse_assignments(page: Page, external_course_id: str, target_domain: 
                 else:
                     timeliness_status = "on_time"
             else: # not_submitted
-                 if is_past_due or missing_el:
+                 if missing_el:
                      timeliness_status = "overdue"
+                 elif is_past_due:
+                     timeliness_status = "pending"
                  else:
                      timeliness_status = "upcoming"
 

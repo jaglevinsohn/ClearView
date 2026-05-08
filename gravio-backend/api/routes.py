@@ -88,9 +88,12 @@ async def connect_schoology_extension(request: ConnectExtensionRequest, backgrou
 @router.get("/check-connection")
 def check_connection(user_id: str, db: Session = Depends(get_db)):
     """ Returns whether the user has an active Schoology connection and its sync status. """
-    from db.models import SyncLog
+    from db.models import SyncLog, UserSubscription
     connection = db.query(SchoologyConnection).filter(SchoologyConnection.user_id == user_id).first()
     is_active = connection is not None and connection.connection_status == "active"
+    
+    sub = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
+    is_subscribed = sub is not None and sub.status == "active"
     
     sync_status = "idle"
     stats = {
@@ -110,7 +113,7 @@ def check_connection(user_id: str, db: Session = Depends(get_db)):
         else:
             sync_status = "validating"
             
-    return {"connected": is_active, "sync_status": sync_status, "stats": stats}
+    return {"connected": is_active, "sync_status": sync_status, "stats": stats, "is_subscribed": is_subscribed}
 
 async def run_sync_worker(connection_id: int):
     """ Helper to run async sync in background without blocking response. """

@@ -28,6 +28,9 @@ app.add_middleware(
 app.include_router(router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api/dashboard")
 
+from api.stripe_routes import router as stripe_router
+app.include_router(stripe_router, prefix="/api/stripe")
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting Gravio Backend...")
