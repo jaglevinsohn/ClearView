@@ -14,7 +14,8 @@ export default function PaywallModal({ userId }: PaywallModalProps) {
         if (!userId) return;
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/stripe/create-checkout-session', {
+            const { API_URL } = await import('@/lib/api');
+            const res = await fetch(`${API_URL}/stripe/create-checkout-session`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: userId })

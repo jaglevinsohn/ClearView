@@ -38,7 +38,8 @@ export default function ConnectSchoology() {
                 setStatus('idle');
                 return;
             }
-            const response = await fetch(`http://localhost:8000/api/check-connection?user_id=${userId}`);
+            const { API_URL } = await import('@/lib/api');
+            const response = await fetch(`${API_URL}/check-connection?user_id=${userId}`);
             const data = await response.json();
 
             if (data.stats) {
